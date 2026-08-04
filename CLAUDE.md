@@ -2,6 +2,17 @@
 
 Project context for Claude Code sessions on this repo.
 
+## Fork status
+
+Fork of [TheAndruu/ai-clean](https://github.com/TheAndruu/ai-clean). Built from source at a pinned commit by the clipboard-manager integration that consumes it.
+
+Carried here, not upstream (no PR opened):
+
+- `borderChars` covers the whole block-element run, so Claude Code's `▎` quote bars get stripped. Upstream lists only `▌`, a visually identical but different rune, so quoted blocks came through untouched.
+- `table.go` — box-drawing tables rebuilt as Markdown. This previously ran as a separate binary piping into `ai-clean`; it belongs inside the pipeline, because the guard that protects Markdown tables runs too late to help a box-drawing render.
+
+The module path stays `github.com/TheAndruu/ai-clean` on purpose, so upstream merges don't conflict on every import. Sync with `git fetch upstream && git merge upstream/master`.
+
 ## What this is
 
 `ai-clean` — a small Go CLI that reads text from the clipboard, normalizes it (strips terminal chrome, trims whitespace, optionally rejoins wrapped lines), and writes it back. Motivating use case: cleaning up output copied from AI CLI tools (Claude Code, Copilot CLI) that arrives with border characters like `│`, padding, and terminal-hard-wrapped lines.
@@ -14,14 +25,15 @@ Project context for Claude Code sessions on this repo.
 
 ## Cleanup pipeline (order matters)
 
-Steps 2–5 run inside a fix-point loop in `clean.go` until a full pass makes no change. Each stage can produce input another would clean further (a trailing-strip can turn a mixed line into pure box chrome; rejoin can expose leading whitespace from the merged tail). Convergence is guaranteed because every changing pass strictly shrinks the document.
+Steps 3–6 run inside a fix-point loop in `clean.go` until a full pass makes no change. Each stage can produce input another would clean further (a trailing-strip can turn a mixed line into pure box chrome; rejoin can expose leading whitespace from the merged tail). Convergence is guaranteed because every changing pass strictly shrinks the document.
 
 1. `ansi.go` — optional ANSI/OSC strip. Off by default; only runs if `Opts.StripANSI` is true. Once at input, before the loop.
-2. `box.go` — `stripFullBoxBorders`. Removes lines that are pure box-drawing chrome (every non-WS rune in `U+2500..U+257F` AND at least one horizontal rule: `─ ━ ═ ╌ ╍`). Catches `┌─┐`/`└─┘`/`═══` framing without touching markdown rules (`---`, `***`, `===`).
-3. `leading.go` — `stripLeadingChrome`. Loops over: dedent the minimum-common leading whitespace, then strip a uniform leading border char (`│ ┃ | > ┆ ╎ ┊ ┇`) when it appears on ≥80% of non-empty lines. **Markdown-table guard**: if the candidate is `|` and ≥50% of border-having lines also have an interior `|`, the strip is skipped.
-4. `trailing.go` — `stripTrailingChrome`. Mirror for the right side. Border-char strip must run before whitespace trim — that's why both are bundled here.
-5. `rejoin.go` — `rejoinWrapped`. Conservative wrapped-line merge. Skipped when `Opts.NoRejoin` is true. Guards: fenced-code detection (sets `Stats.UnclosedFence`), leading whitespace on either side, list/heading markers, table rows, sentence terminators, minimum doc-width floor (`rejoinMinDocWidth = 40`).
-6. `clean.go` — `collapseBlankRuns`. Runs of 3+ blank lines collapse to 2. Once after the loop.
+2. `table.go` — `rebuildBoxTables`. Converts a `┌─┬─┐` box-drawing table back into Markdown table syntax, merging cells the terminal wrapped across several physical lines. Once at input, before the loop, and deliberately so: the stage consumes the rule lines that define row boundaries, so running it per-pass would let cell content that happens to look like a rule line be re-parsed, breaking idempotency. Running it once is safe because by the end of the loop `stripFullBoxBorders` has deleted every rule line, leaving a second `Clean()` nothing to rebuild. Its output is `|`-shaped, which the markdown-table guard in step 4 then protects.
+3. `box.go` — `stripFullBoxBorders`. Removes lines that are pure box-drawing chrome (every non-WS rune in `U+2500..U+257F` AND at least one horizontal rule: `─ ━ ═ ╌ ╍`). Catches `┌─┐`/`└─┘`/`═══` framing without touching markdown rules (`---`, `***`, `===`).
+4. `leading.go` — `stripLeadingChrome`. Loops over: dedent the minimum-common leading whitespace, then strip a uniform leading border char (`│ ┃ | > ┆ ╎ ┊ ┇`, plus the block-element quote bars `▉▊▋▌▍▎▏`) when it appears on ≥80% of non-empty lines. **Markdown-table guard**: if the candidate is `|` and ≥50% of border-having lines also have an interior `|`, the strip is skipped.
+5. `trailing.go` — `stripTrailingChrome`. Mirror for the right side. Border-char strip must run before whitespace trim — that's why both are bundled here.
+6. `rejoin.go` — `rejoinWrapped`. Conservative wrapped-line merge. Skipped when `Opts.NoRejoin` is true. Guards: fenced-code detection (sets `Stats.UnclosedFence`), leading whitespace on either side, list/heading markers, table rows, sentence terminators, minimum doc-width floor (`rejoinMinDocWidth = 40`).
+7. `clean.go` — `collapseBlankRuns`. Runs of 3+ blank lines collapse to 2. Once after the loop.
 
 CRLF/CR normalization happens at input, before the loop: `\r\n` → `\n`, then any remaining `\r` → `\n` (handles old-Mac endings and stray CRs that would break idempotency).
 
@@ -31,6 +43,7 @@ CRLF/CR normalization happens at input, before the loop: `\r\n` → `\n`, then a
 - **Tests are the correctness gate.** `internal/clean/clean_test.go` is table-driven plus a `testdata/`-driven full-pipeline test. New pipeline behavior should land with a test case. When fixing a bug, add the regression case to the table first.
 - **Idempotency is an invariant.** `Clean(Clean(x), opts) == Clean(x, opts)` must hold. Enforced by `TestCleanIdempotentOverTestdata` and `FuzzClean`. If you touch the pipeline, run the fuzzer for ≥30s — it has caught real bugs.
 - **Pipeline ordering is fragile.** Don't move work outside the fix-point loop unless you're sure it can't introduce new chrome the other stages would catch.
+- **`borderChars` covers the whole block-element run** `U+2589..U+258F` (`▉▊▋▌▍▎▏`), not just `▌`. CLIs pick arbitrary widths out of it for quote bars and the glyphs are indistinguishable at terminal font sizes — Claude Code uses `▎` (U+258E). `U+2588` (`█`) is excluded on purpose: a full block is usually graphics fill or a progress bar, not chrome.
 - **The 80% border-detection threshold** (`borderThreshold` in `leading.go`) is intentional. Don't raise to 100% — that breaks on real-world output with one occasional missing border.
 - **The 50% markdown-table threshold** (`markdownTableThreshold`) is lower than the border threshold because separators (`|---|---|`) and continuation rows dilute the interior-`|` count.
 - **The 3-pass `nestingWarnThreshold` is a warning, not a cap.** Loops run until convergence; this only sets `Stats.LeadingCapHit` / `TrailingCapHit`. The hard cap (`pipelineSafetyCap = 100`) makes a heuristic bug fail loud instead of looping forever.

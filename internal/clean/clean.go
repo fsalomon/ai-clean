@@ -27,6 +27,7 @@ type Stats struct {
 	TrailingBorderLines   int
 	DedentColumns         int
 	BoxBorderLinesRemoved int
+	BoxTablesRebuilt      int
 	RejoinedLines         int
 	BlankRunsCollapsed    int
 	LeadingCapHit         bool
@@ -48,6 +49,17 @@ func Clean(text string, opts Opts) (string, Stats) {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
 	text = strings.ReplaceAll(text, "\r", "\n")
 	lines := strings.Split(text, "\n")
+
+	// Box tables are rebuilt once, before the loop, because the stage is
+	// destructive-by-design: it consumes the rule lines that define row
+	// boundaries. Running it inside the fix-point loop would let a table
+	// that only *appears* after an outer border is stripped get rebuilt on
+	// a later pass, but it would also risk re-parsing cell content that
+	// happens to look like a rule line, which breaks idempotency. Once,
+	// on the raw input, is the safe half of that trade — and by the time
+	// the loop finishes, stripFullBoxBorders has removed every rule line
+	// anyway, so a second Clean() has nothing left to rebuild.
+	lines = rebuildBoxTables(lines, &stats)
 
 	// Fix-point: each stage can produce input that another stage would
 	// clean further (trailing-strip can empty a line, changing dedent

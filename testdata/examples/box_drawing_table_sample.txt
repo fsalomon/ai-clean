@@ -1,0 +1,15 @@
+Comparing the three build modes:
+
+┌──────────────┬────────────────────────────────────────────────────────────────────────────────────────────────────┬─────────────────────────────────┐
+│     Mode     │                                            Behaviour                                               │            Best for             │
+├──────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────┤
+│ debug        │ no optimisation, full symbol tables, assertions left in, rebuilds only what changed                │ day-to-day work on a single     │
+│              │                                                                                                    │ package                         │
+├──────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────┤
+│ release      │ full optimisation, symbols stripped, assertions compiled out                                       │ anything you ship               │
+├──────────────┼────────────────────────────────────────────────────────────────────────────────────────────────────┼─────────────────────────────────┤
+│ profile      │ optimised like release but keeps frame pointers and symbols so a profiler can walk the stack       │ finding out where the time      │
+│              │                                                                                                    │ actually goes                   │
+└──────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────┴─────────────────────────────────┘
+
+Trailing paragraph after the table.

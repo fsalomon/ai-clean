@@ -58,6 +58,16 @@ func TestClean(t *testing.T) {
 			want: "a\nb\nc",
 		},
 		{
+			name: "claude code quote bar stripped",
+			in:   "▎ first\n▎ second\n▎ third",
+			want: "first\nsecond\nthird",
+		},
+		{
+			name: "thin quote bar stripped",
+			in:   "▏ first\n▏ second\n▏ third",
+			want: "first\nsecond\nthird",
+		},
+		{
 			name: "fully bordered output",
 			in:   "│ hello   │\n│ world   │\n│ done    │",
 			want: "hello\nworld\ndone",

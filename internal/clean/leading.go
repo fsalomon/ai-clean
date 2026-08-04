@@ -5,7 +5,14 @@ import "strings"
 // borderChars are the candidate left/right border characters used by
 // CLIs to draw boxed output. Order doesn't matter; each is checked
 // independently against the threshold.
-var borderChars = []rune{'│', '┃', '|', '>', '┆', '╎', '┊', '┇', '╏', '▌'}
+//
+// The block-element run U+2589..U+258F (▉▊▋▌▍▎▏) is listed in full
+// because CLIs pick arbitrary widths out of it for quote bars, and the
+// glyphs are near-indistinguishable at terminal font sizes — Claude
+// Code's quoted blocks use ▎ (U+258E), not the ▌ (U+258C) that looks
+// like the obvious candidate. U+2588 (█) is deliberately left out: a
+// full block is more often graphics fill or a progress bar than chrome.
+var borderChars = []rune{'│', '┃', '|', '>', '┆', '╎', '┊', '┇', '╏', '▉', '▊', '▋', '▌', '▍', '▎', '▏'}
 
 // borderThreshold: a candidate is accepted as a uniform border when
 // it appears at the relevant position on at least this fraction of

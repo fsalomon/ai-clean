@@ -146,6 +146,10 @@ func writeExplain(w io.Writer, s clean.Stats) {
 		fmt.Fprintf(&b, "  removed %d box-border line(s)\n", s.BoxBorderLinesRemoved)
 		wrote = true
 	}
+	if s.BoxTablesRebuilt > 0 {
+		fmt.Fprintf(&b, "  rebuilt %d box-drawing table(s) as markdown\n", s.BoxTablesRebuilt)
+		wrote = true
+	}
 	if s.RejoinedLines > 0 {
 		fmt.Fprintf(&b, "  rejoined %d wrapped line(s)\n", s.RejoinedLines)
 		wrote = true
